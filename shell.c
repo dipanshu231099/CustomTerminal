@@ -8,9 +8,13 @@
 #include <signal.h>
 #include <sys/wait.h>
 #include <termios.h>
+#include <grp.h>
 #include <unistd.h>
 
 #include "tokenizer.h"
+
+/* Macro for using group as struct */
+#define group struct group
 
 /* Convenience macro to silence compiler warnings about unused function parameters. */
 #define unused __attribute__((unused))
@@ -29,6 +33,7 @@ pid_t shell_pgid;
 
 int cmd_exit(struct tokens *tokens);
 int cmd_help(struct tokens *tokens);
+int cmd_id(struct tokens *tokens);
 
 /* Built-in command functions take token array and return int */
 typedef int cmd_fun_t(struct tokens *tokens);
@@ -43,6 +48,7 @@ typedef struct fun_desc {
 fun_desc_t cmd_table[] = {
   {cmd_help, "?", "show this help menu"},
   {cmd_exit, "exit", "exit the command shell"},
+  {cmd_id, "id", "display the user-id, the primary group-id and the groups the user is part of"},
 };
 
 /* Prints a helpful description for the given command */
@@ -55,6 +61,37 @@ int cmd_help(unused struct tokens *tokens) {
 /* Exits this shell */
 int cmd_exit(unused struct tokens *tokens) {
   exit(0);
+}
+
+/* id command */
+int cmd_id(unused struct tokens *tokens) {
+  char userName[2048];
+  group *Group = getgrgid(getgid());
+  int ngroups=0;
+  getlogin_r(userName, 2048);
+
+  getgrouplist(userName, Group->gr_gid, NULL, &ngroups);
+  __gid_t groups[ngroups];
+  getgrouplist(userName, Group->gr_gid, groups, &ngroups);
+
+
+  printf("uid=%d(%s) gid=%d(%s)\n",
+    (int)getuid(),
+    userName,
+    Group->gr_gid,
+    Group->gr_name
+  );
+  printf("groups=");
+  for(int i=0;i<ngroups;i++){
+    group *gr = getgrgid(groups[i]);
+    if(gr==NULL){
+      perror("Fatal error: Group not found!");
+      return -1;
+    }
+    printf("%d(%s) ", gr->gr_gid, gr->gr_name);
+  }
+  printf("\n");
+  return 2;
 }
 
 /* Looks up the built-in command, if it exists. */
