@@ -111,6 +111,12 @@ int lookup(char cmd[])
 /* Intialization procedures for this shell */
 void init_shell()
 {
+  /* ignoring interrupt signals such as ctrl+c */
+  signal(SIGINT, SIG_IGN);
+
+  /* starting program in its own group */
+  setpgid(getpid(), getpid());
+
   /* Our shell is connected to standard input. */
   shell_terminal = STDIN_FILENO;
 
@@ -203,6 +209,12 @@ int main(unused int argc, unused char *argv[])
       int pid = fork();
       char *args[] = {runFile, NULL};
       if (pid == 0){
+        // child process must use default signal handlers
+        signal(SIGINT, SIG_DFL);
+
+        // to ensure that its process group is placed in the foreground.
+        tcsetpgrp(0, getpgrp());
+
         // child process
         int old_stdout = dup(1);
         if(output!=1) dup2(output, 1);
